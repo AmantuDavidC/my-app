@@ -2,58 +2,45 @@ name: Deploy NestJS to Huawei ECS
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+      - name: Build on GitHub
+        run: |
+          cd nestjs-simple-api
+          npm install
+          npm run build
 
-      - name: Install Dependencies
-        # This tells GitHub to look inside your subfolder
-        working-directory: ./nestjs-simple-api
-        run: npm install
-
-      - name: Build Application
-        working-directory: ./nestjs-simple-api
-        run: npm run build
-
-      - name: Deploy to Huawei Cloud via SSH
+      - name: Deploy to Server
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # 1. FORCE the server to use Node 18
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            
+            # 2. Setup folders
             APP_DIR="/var/www/nestjs-api"
             RELEASE_DIR="$APP_DIR/releases/v${{ github.run_number }}"
-            
-            # 1. Create release directory
             mkdir -p $RELEASE_DIR
             
-            # 2. Clone the repo directly onto the server
-            # This uses your GitHub Token for permission
-            cd $RELEASE_DIR
-            git clone https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git .
+            # 3. Get the code onto the server
+            git clone https://${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git $RELEASE_DIR
             
-            # 3. Install and Build on the server
-            cd nestjs-simple-api
+            # 4. Build on the server
+            cd $RELEASE_DIR/nestjs-simple-api
             npm install
             npm run build
             
-            # 4. Update the 'current' symlink to point to the new version
+            # 5. Link and Start
             ln -sfn $RELEASE_DIR/nestjs-simple-api $APP_DIR/current
-            
-            # 5. Start or Restart the app with PM2
-            pm2 delete all || true
-            pm2 start $APP_DIR/current/dist/main.js --name "nestjs-api"
-            pm2 save
+            npm install -g pm2
+            pm2 restart nestjs-api || pm2 start $APP_DIR/current/dist/main.js --name "nestjs-api"

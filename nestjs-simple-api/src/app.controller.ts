@@ -7,16 +7,21 @@ export class AppController {
 
   @Get()
   getHello(): string {
-    return this.appService.getHello();
+    return "Hello from NestJS Version 3.0!";
   }
 
   @Get('health')
   getHealth(): object {
-    return this.appService.getHealthCheck();
+    return { status: "UP", version: "3.0.0", timestamp: new Date().toISOString() };
   }
 
   @Get('about')
   getAbout(): object {
-    return this.appService.getAbout();
+    return {
+      project: "NestJS Deployment",
+      environment: "Huawei Cloud ECS",
+      version: "3.0",
+      description: "Automated CI/CD Pipeline Success"
+    };
   }
 }
